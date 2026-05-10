@@ -1,12 +1,25 @@
 # services/pac_mock.py
-import uuid
-from datetime import datetime
 
-def timbrar_cfdi(cfdi):
-    cfdi["timbre"] = {
-        "uuid_fiscal": str(uuid.uuid4()),
-        "fecha_timbrado": datetime.now().isoformat(),
-        "pac": "PAC_FAKE"
+from xml.etree import ElementTree as ET
+import requests
+
+
+def timbrar_cfdi(xml_string):
+
+   
+    url = "http://127.0.0.1:8000/process_xml"
+
+    headers = {
+        "Content-Type": "application/xml"
     }
-    cfdi["status"] = "timbrado"
-    return cfdi
+
+    response = requests.post(
+        url,
+        data=xml_string,
+        headers=headers
+    )
+
+    print(response.status_code)
+    print(response.text)
+
+    
