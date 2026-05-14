@@ -14,5 +14,3 @@ def validar_zip(zipcode):
         raise Exception
 
     return address[1], address[3]
-
-

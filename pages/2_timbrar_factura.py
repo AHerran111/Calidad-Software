@@ -1,22 +1,16 @@
 # pages/2_timbrar_factura.py
 
-import streamlit as st
 import pandas as pd
-
+import streamlit as st
+from services.pac_api import timbrar_cfdi
 from utils.database import (
+    actualizar_timbrado,
     get_connection,
     obtener_pendientes,
     obtener_xml,
-    actualizar_timbrado
 )
 
-from services.pac_api import timbrar_cfdi
-
-
-st.set_page_config(
-    page_title="Timbrar Facturas",
-    page_icon="📄"
-)
+st.set_page_config(page_title="Timbrar Facturas", page_icon="📄")
 
 st.title("Timbrado de Facturas")
 
@@ -45,15 +39,9 @@ if not pendientes:
 # SELECTBOX
 # =========================================================
 
-options = {
-    f"{r[4]} | {r[1]} -> {r[2]} | ${r[3]}": r[0]
-    for r in pendientes
-}
+options = {f"{r[4]} | {r[1]} -> {r[2]} | ${r[3]}": r[0] for r in pendientes}
 
-selected = st.selectbox(
-    "Facturas Pendientes",
-    list(options.keys())
-)
+selected = st.selectbox("Facturas Pendientes", list(options.keys()))
 
 sello = options[selected]
 
@@ -62,10 +50,7 @@ sello = options[selected]
 # DETALLE FACTURA
 # =========================================================
 
-factura = next(
-    r for r in pendientes
-    if r[0] == sello
-)
+factura = next(r for r in pendientes if r[0] == sello)
 
 detalle = {
     "SELLO": factura[0],
@@ -73,7 +58,7 @@ detalle = {
     "RFC RECEPTOR": factura[2],
     "TOTAL": factura[3],
     "FECHA": factura[4],
-    "ESTADO": factura[5]
+    "ESTADO": factura[5],
 }
 
 st.subheader("Detalle de Factura")
@@ -88,18 +73,12 @@ st.table(df)
 # =========================================================
 
 if st.button("Timbrar"):
-
     try:
-
         xml = obtener_xml(conn, sello)
 
         xml_timbrado = timbrar_cfdi(xml)
 
-        actualizar_timbrado(
-            conn,
-            sello,
-            xml_timbrado
-        )
+        actualizar_timbrado(conn, sello, xml_timbrado)
 
         st.success("Factura timbrada correctamente")
 
@@ -107,9 +86,8 @@ if st.button("Timbrar"):
             label="Descargar XML Timbrado",
             data=xml_timbrado,
             file_name="cfdi_timbrado.xml",
-            mime="application/xml"
+            mime="application/xml",
         )
 
     except Exception as e:
-
         st.error(str(e))
