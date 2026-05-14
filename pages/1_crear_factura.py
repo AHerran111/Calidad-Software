@@ -10,11 +10,16 @@ from datetime import datetime
 from utils.vars import vars
 from utils.database import get_emisores, get_receptores
 from forex_python.converter import CurrencyRates
+from utils.database import get_connection,guardar_factura
+import pandas as pd
+from io import StringIO
+from utils.database import guardar_factura
 
+conn = get_connection()
 
 c = CurrencyRates()
-emisores = get_emisores()
-receptores = get_receptores()
+emisores = get_emisores(conn)
+receptores = get_receptores(conn)
 
 st.set_page_config(page_title="Crear Factura", page_icon="📈")
 
@@ -337,6 +342,147 @@ for row in data.values():
 
 data.update({ "impuestos_final": round(totales["impuestos"], 2),
         "descuentos_final": round(totales["descuentos"], 2)})
+st.divider()
+st.header("Procesamiento Masivo CSV")
+
+st.markdown(
+    """
+### Formato esperado del CSV
+
+Columnas requeridas:
+
+- emisor
+- receptor
+- rfc_receptor
+- regimen_receptor
+- uso_cfdi
+- cp
+- producto
+- unidad
+- cantidad
+- valor_unitario
+- descuento
+- iva
+- descripcion
+- forma_pago
+- metodo_pago
+- moneda
+
+Cada fila representa un concepto CFDI.
+"""
+)
+
+uploaded_file = st.file_uploader(
+    "Subir archivo CSV",
+    type=["csv"]
+)
+
+if uploaded_file is not None:
+
+    try:
+
+        df = pd.read_csv(uploaded_file)
+
+        st.subheader("Vista previa")
+        st.dataframe(df)
+
+        if st.button("Procesar Facturas CSV"):
+
+            success = 0
+            errors = []
+
+            for idx, row in df.iterrows():
+
+                try:
+
+                    emisor_nombre = row["emisor"]
+
+                    if emisor_nombre not in emisores:
+                        raise Exception(f"Emisor no encontrado: {emisor_nombre}")
+                    concepto = {
+                        "Producto": row["producto"],
+                        "Referencia": "",
+                        "ClaveProdServ": "01010101",
+                        "ClaveUnidad": "ACT",
+                        "Unidad": row["unidad"],
+                        "Precio": float(row["valor_unitario"]),
+                        "Cantidad": float(row["cantidad"]),
+                        "ValorUnitario": float(row["valor_unitario"]),
+                        "Importe": round(
+                            float(row["cantidad"]) * float(row["valor_unitario"]),
+                            2
+                        ),
+                        "Impuesto": 0,
+                        "Descuento": float(row["descuento"]),
+                        "ObjetoImp": "02",
+                        "Base": 0,
+                        "TipoFactor": "Tasa",
+                        "TasaOCuota": float(row["tasa"]),
+                        "ImporteImpuesto": 0,
+                        "Descripcion": row["descripcion"],
+                        "Total": 0
+                    }
+
+                    importe = concepto["Importe"]
+
+                    concepto["Base"] = base
+                    concepto["ImporteImpuesto"] = impuesto_importe
+                    concepto["Total"] = total
+
+                    data = {
+                        "emisor": emisor_nombre,
+                        "rfc_emisor": emisores[emisor_nombre]["rfc"],
+                        "regimen_emisor": emisores[emisor_nombre]["regimen_fiscal"],
+                        "cp_emisor": emisores[emisor_nombre]["codigo_postal"],
+                        "direccion_emisor": emisores[emisor_nombre].get("direccion", ""),
+                        "receptor": row["receptor"],
+                        "rfc_receptor": row["rfc_receptor"],
+                        "regimen_receptor": row["regimen_receptor"],
+                        "uso_cfdi": row["uso_cfdi"],
+                        "cp": str(row["cp"]),
+                        "subtotal": round(base, 2),
+                        "total_final": round(total, 2),
+                        "conceptos": [concepto],
+                        "forma_pago": row["forma_pago"],
+                        "metodo_pago": row["metodo_pago"],
+                        "moneda": row["moneda"],
+                        "tipo_cambio": c.get_rate(row["moneda"], "MXN"),
+                        "fecha": datetime.now().isoformat(),
+                        "impuestos_final": round(impuesto_importe, 2),
+                        "descuentos_final": round(descuento_importe, 2)
+                    }
+
+                    cfdi = generar_cfdi(data)
+                    cfdi = sellar_cfdi(cfdi)
+
+                    xml = dict_to_xml(cfdi)
+
+                    guardar_factura(
+                        sello=cfdi["Comprobante"]["@Sello"],
+                        rfc_emisor=data["rfc_emisor"],
+                        rfc_receptor=data["rfc_receptor"],
+                        total=data["total_final"],
+                        fecha=data["fecha"],
+                        xml=xml,
+                        estado="PENDIENTE"
+                    )
+
+                    success += 1
+                except Exception as e:
+
+                    errors.append(
+                        f"Fila {idx + 1}: {str(e)}"
+                    )
+            st.success(f"Facturas procesadas: {success}")
+
+            if errors:
+
+                st.error("Errores encontrados")
+
+                for err in errors:
+                    st.text(err)
+    except Exception as e:
+        st.error(f"Error leyendo CSV: {e}")
 
 if st.button("Generar CFDI",disabled = button_state):
     cfdi = generar_cfdi(data)
@@ -348,18 +494,20 @@ if st.button("Generar CFDI",disabled = button_state):
     st.json(cfdi)
 
     xml = dict_to_xml(cfdi)
+    guardar_factura(conn,xml)
+
 
    
         #print(xml)
-    try:
-        xml_timbrado = timbrar_cfdi(xml)
-        #print(xml_timbrado)
-    except Exception as e:
-        print(e)
+    # try:
+    #     xml_timbrado = timbrar_cfdi(xml)
+    #     #print(xml_timbrado)
+    # except Exception as e:
+    #     print(e)
 
-    st.download_button(
-        label="Descargar XML",
-        data=xml_timbrado,
-        file_name="cfdi.xml",
-        mime="application/xml"
-    )
+    # st.download_button(
+    #     label="Descargar XML",
+    #     data=xml_timbrado,
+    #     file_name="cfdi.xml",
+    #     mime="application/xml"
+    # )
