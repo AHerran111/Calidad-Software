@@ -2,16 +2,19 @@
 import streamlit as st
 from services.cfdi_generator import generar_cfdi
 from services.signer_mock import sellar_cfdi
-from services.pac_mock import timbrar_cfdi
+from services.pac_api import timbrar_cfdi
 from utils.xml_utils import dict_to_xml
 from utils.rfc_validator import validar_rfc
 from utils.zipcode_validator import validar_zip
 from datetime import datetime
 from utils.vars import vars
-from utils.vars import emisores
+from utils.database import get_emisores, get_receptores
 from forex_python.converter import CurrencyRates
 
+
 c = CurrencyRates()
+emisores = get_emisores()
+receptores = get_receptores()
 
 st.set_page_config(page_title="Crear Factura", page_icon="📈")
 
@@ -48,15 +51,50 @@ button_state = False
 # Inputs
 fecha = st.date_input("Fecha de Factura",min_value=vars["date"],max_value="today")
 emisor_predef = st.selectbox("Emisor",emisores)
-print(emisores[emisor_predef])
+#print(emisores[emisor_predef])
 # emisor = st.text_input("RFC Emisor",disabled=True)
 # regimen_emisor = st.selectbox("Regimen Fiscal",vars["regimenes"],key='reg_emisor',disabled=True)
 st.subheader("Datos emisor")
 st.table(emisores[emisor_predef])
 st.divider()
-razon_social_receptor  = st.text_input("Razón Social Receptor")
-receptor = st.text_input("RFC Receptor")
-regimen_receptor = st.selectbox("Regimen Fiscal",vars["regimenes"],key='reg_receptor')
+# razon_social_receptor  = st.text_input("Razón Social Receptor")
+# receptor = st.text_input("RFC Receptor")
+# regimen_receptor = st.selectbox("Regimen Fiscal",vars["regimenes"],key='reg_receptor')
+
+st.subheader("Datos receptor")
+
+receptor_names = [r["nombre"] for r in receptores]
+
+receptor_selected = st.selectbox(
+    "Receptor",
+    receptor_names
+)
+
+receptor_data = next(
+    r for r in receptores
+    if r["nombre"] == receptor_selected
+)
+
+razon_social_receptor = receptor_data["nombre"]
+
+receptor = st.text_input(
+    "RFC Receptor",
+    value=receptor_data["rfc"],
+    disabled=True
+)
+
+regimen_receptor = st.text_input(
+    "Regimen Fiscal",
+    value=receptor_data["regimen_fiscal"],
+    disabled=True
+)
+
+zipcode = st.text_input(
+    "Codigo Postal",
+    value=receptor_data["codigo_postal"],
+    disabled=True
+)
+
 uso_cfdi = st.selectbox("Uso",vars['CFDIS'])
 
 for code in vars["morales_codes"]:
@@ -67,27 +105,7 @@ for code in vars["morales_codes"]:
             break
 
 
-            
-
-
-
-
-
-zipcode = st.text_input("Codigo Postal",max_chars=5)
-
-city,state = '',''
-if (st.button("Validar Código Postal",disabled=(len(zipcode) != 5))):
-    try:
-        city , state = validar_zip(int(zipcode))
-        st.success("Codigo postal valido")
-    except Exception:
-        button_state = True
-        st.error("Codigo postal no valido")
-
-
-st.text_input("Ciudad",disabled=True,value=city)
-st.text_input("Estado",disabled = True,value = state)
-
+        
 st.divider()
 
 if "rows" not in st.session_state:
@@ -252,7 +270,7 @@ st.button("➕ Agregar concepto", on_click=add_row)
 
 totales  = calcular_totales(st.session_state.rows)
 
-print(totales)
+#print(totales)
 
 cols = st.columns(3)
 with cols[2]:
@@ -323,22 +341,25 @@ data.update({ "impuestos_final": round(totales["impuestos"], 2),
 if st.button("Generar CFDI",disabled = button_state):
     cfdi = generar_cfdi(data)
     cfdi = sellar_cfdi(cfdi)
-   
-    xml = dict_to_xml(cfdi)
-    #print(xml)
-    try:
-        xml_timbrado = timbrar_cfdi(xml)
-    except Exception as e:
-        print(e)
-
+    
     
 
     st.success("CFDI generado y timbrado (simulado)")
     st.json(cfdi)
 
+    xml = dict_to_xml(cfdi)
+
+   
+        #print(xml)
+    try:
+        xml_timbrado = timbrar_cfdi(xml)
+        #print(xml_timbrado)
+    except Exception as e:
+        print(e)
+
     st.download_button(
         label="Descargar XML",
-        data=xml,
+        data=xml_timbrado,
         file_name="cfdi.xml",
         mime="application/xml"
     )

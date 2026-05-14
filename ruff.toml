@@ -1,0 +1,53 @@
+# ruff.toml
+
+target-version = "py311"
+line-length = 88
+
+exclude = [
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "build",
+    "dist",
+    "rfc_app.egg-info",
+]
+
+src = [
+    "services",
+    "utils",
+    "tests",
+    "pages",
+]
+
+[lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "W",   # pycodestyle warnings
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "SIM", # simplify
+]
+
+ignore = [
+    "E501", # line too long (handled by formatter)
+]
+
+fixable = ["ALL"]
+
+[lint.isort]
+combine-as-imports = true
+force-single-line = false
+
+[lint.per-file-ignores]
+"tests/*.py" = [
+    "S101", # allow assert
+]
+
+[format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+skip-magic-trailing-comma = false

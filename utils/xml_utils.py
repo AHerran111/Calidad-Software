@@ -1,167 +1,200 @@
 # utils/xml_utils.py
 
-from datetime import datetime
+from xml.etree.ElementTree import Element, SubElement, tostring
+from xml.dom import minidom
 import uuid
-
-
-def safe_float(value, default=0):
-    try:
-        return float(value)
-    except:
-        return default
-
-
-def get_concepto_value(concepto, key, index_map=None, default=""):
-    """
-    Supports:
-    - dict
-    - list/tuple
-    """
-
-    if isinstance(concepto, dict):
-        return concepto.get(key, default)
-
-    if isinstance(concepto, (list, tuple)) and index_map:
-        idx = index_map.get(key)
-
-        if idx is not None and idx < len(concepto):
-            return concepto[idx]
-
-    return default
 
 
 def dict_to_xml(cfdi):
 
-    conceptos = cfdi.get("conceptos", [])
+    NS_CFDI = "http://www.sat.gob.mx/cfd/4"
+    NS_XSI = "http://www.w3.org/2001/XMLSchema-instance"
+    NS_TFD = "http://www.sat.gob.mx/TimbreFiscalDigital"
 
-    conceptos_xml = ""
-
- 
-
-    # ONLY needed if concepto is LIST
-    # Adjust indexes to your real structure
-    index_map = {
-        "Referencia": 0,
-        "Descripcion": 1,
-        "Cantidad": 2,
-        "Precio": 3,
-        "Importe": 4,
-        "Impuesto": 5,
-        "ImpuestoPct": 6,
-        "Descuento": 7,
+    metodo_map = {
+        "Pago En Una Sola Exhibición (PUE)": "PUE",
+        "Pago en Parcialidades o Diferido (PPD)": "PPD"
     }
 
-    for c in conceptos:
+    forma_map = {
+        "01 EFECTIVO": "01",
+        "02 CHEQUE": "02",
+        "03 TRANSFERENCIA": "03",
+        "04 TARJETA DE CRÉDITO": "04",
+        "28 TARJETA DE DÉBITO": "28",
+        "99 POR DEFINIR": "99"
+    }
 
-        referencia = get_concepto_value(c, "Referencia", index_map, "")
-        descripcion = get_concepto_value(c, "Descripcion", index_map, "")
+    subtotal = round(float(cfdi["subtotal"]), 2)
+    descuentos = round(float(cfdi["descuentos_final"]), 2)
+    impuestos = round(float(cfdi["impuestos_final"]), 2)
+    total = round(float(cfdi["total_final"]), 2)
 
-        cantidad = safe_float(
-            get_concepto_value(c, "Cantidad", index_map, 0)
+    comprobante_attrs = {
+        "xmlns:cfdi": NS_CFDI,
+        "xmlns:xsi": NS_XSI,
+        "xsi:schemaLocation": (
+            "http://www.sat.gob.mx/cfd/4 "
+            "http://www.sat.gob.mx/sitio_internet/cfd/4/cfdv40.xsd"
+        ),
+
+        "Version": "4.0",
+        "Serie": "A",
+        "Folio": str(uuid.uuid4())[:8],
+
+        "Fecha": cfdi["fecha"],
+
+        "Moneda": cfdi["moneda"],
+        "TipoDeComprobante": "I",
+        "Exportacion": "01",
+
+        "LugarExpedicion": str(cfdi["cp_emisor"]),
+
+        "MetodoPago": metodo_map[cfdi["metodo_pago"]],
+        "FormaPago": forma_map[cfdi["forma_pago"]],
+
+        "SubTotal": f"{subtotal:.2f}",
+        "Descuento": f"{descuentos:.2f}",
+        "Total": f"{total:.2f}",
+
+        "Sello": cfdi["sello"]
+    }
+
+    root = Element("cfdi:Comprobante", comprobante_attrs)
+
+    # =========================
+    # EMISOR
+    # =========================
+
+    SubElement(root, "cfdi:Emisor", {
+        "Nombre": cfdi["emisor"],
+        "Rfc": cfdi["rfc_emisor"],
+        "RegimenFiscal": "601"
+    })
+
+    # =========================
+    # RECEPTOR
+    # =========================
+
+    SubElement(root, "cfdi:Receptor", {
+        "Nombre": cfdi["receptor"],
+        "Rfc": cfdi["rfc_receptor"],
+        "DomicilioFiscalReceptor": str(cfdi["cp"]),
+        "RegimenFiscalReceptor": "601",
+        "UsoCFDI": "G01"
+    })
+
+    # =========================
+    # CONCEPTOS
+    # =========================
+
+    conceptos_tag = SubElement(root, "cfdi:Conceptos")
+
+    for concepto in cfdi["conceptos"]:
+
+        concepto_tag = SubElement(conceptos_tag, "cfdi:Concepto", {
+            "ClaveProdServ": (
+                concepto["ClaveProdServ"]
+                if concepto["ClaveProdServ"]
+                else "01010101"
+            ),
+
+            "NoIdentificacion": concepto["Referencia"],
+
+            "Cantidad": f'{float(concepto["Cantidad"]):.2f}',
+
+            "ClaveUnidad": (
+                concepto["ClaveUnidad"]
+                if concepto["ClaveUnidad"]
+                else "H87"
+            ),
+
+            "Unidad": concepto["Unidad"],
+
+            "Descripcion": (
+                concepto["Descripcion"]
+                if concepto["Descripcion"]
+                else concepto["Producto"]
+            ),
+
+            "ValorUnitario": (
+                f'{float(concepto["ValorUnitario"]):.2f}'
+            ),
+
+            "Importe": (
+                f'{float(concepto["Importe"]):.2f}'
+            ),
+
+            "Descuento": (
+                f'{float(concepto["Importe"]) - float(concepto["Base"]):.2f}'
+            ),
+
+            "ObjetoImp": concepto["ObjetoImp"]
+        })
+
+        impuestos_tag = SubElement(
+            concepto_tag,
+            "cfdi:Impuestos"
         )
 
-        precio = safe_float(
-            get_concepto_value(c, "Precio", index_map, 0)
+        traslados_tag = SubElement(
+            impuestos_tag,
+            "cfdi:Traslados"
         )
 
-        base = safe_float(
-            get_concepto_value(c, "Importe", index_map, 0)
-        )
+        SubElement(traslados_tag, "cfdi:Traslado", {
+            "Base": f'{float(concepto["Base"]):.2f}',
+            "Impuesto": "002",
+            "TipoFactor": concepto["TipoFactor"],
+            "TasaOCuota": f'{float(concepto["TasaOCuota"]):.6f}',
+            "Importe": f'{float(concepto["ImporteImpuesto"]):.2f}'
+        })
 
-        impuesto = safe_float(
-            get_concepto_value(c, "Impuesto", index_map, 0)
-        )
+    # =========================
+    # IMPUESTOS GLOBALES
+    # =========================
 
-        descuento = safe_float(
-            get_concepto_value(c, "Descuento", index_map, 0)
-        )
+    impuestos_root = SubElement(root, "cfdi:Impuestos", {
+        "TotalImpuestosTrasladados": f"{impuestos:.2f}"
+    })
 
-        impuesto_pct = safe_float(
-            get_concepto_value(c, "ImpuestoPct", index_map, 16)
-        )
+    traslados_root = SubElement(
+        impuestos_root,
+        "cfdi:Traslados"
+    )
 
-        conceptos_xml += f"""
-        <cfdi:Concepto
-            ClaveProdServ="01010101"
-            NoIdentificacion="{referencia}"
-            Cantidad="{cantidad:.2f}"
-            ClaveUnidad="H87"
-            Unidad="Pieza"
-            Descripcion="{descripcion}"
-            ValorUnitario="{precio:.2f}"
-            Importe="{base:.2f}"
-            Descuento="{descuento:.2f}"
-            ObjetoImp="02">
+    SubElement(traslados_root, "cfdi:Traslado", {
+        "Base": f"{subtotal - descuentos:.2f}",
+        "Impuesto": "002",
+        "TipoFactor": "Tasa",
+        "TasaOCuota": "0.160000",
+        "Importe": f"{impuestos:.2f}"
+    })
 
-            <cfdi:Impuestos>
-                <cfdi:Traslados>
-                    <cfdi:Traslado
-                        Base="{base:.2f}"
-                        Impuesto="002"
-                        TipoFactor="Tasa"
-                        TasaOCuota="{impuesto_pct / 100:.6f}"
-                        Importe="{impuesto:.2f}"/>
-                </cfdi:Traslados>
-            </cfdi:Impuestos>
+    # =========================
+    # COMPLEMENTO TIMBRE
+    # =========================
 
-        </cfdi:Concepto>
-        """
-    subtotal = safe_float(cfdi.get("subtotal", 0))
-    total_impuestos = safe_float(cfdi.get("impuestos_final", 0))
-    total_descuentos = safe_float(cfdi.get("descuentos_final", 0))
-    total = safe_float(cfdi.get("total_final", 0))
-    xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+    complemento = SubElement(
+        root,
+        "cfdi:Complemento"
+    )
 
-<cfdi:Comprobante
-    xmlns:cfdi="http://www.sat.gob.mx/cfd/4"
-    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xsi:schemaLocation="
-        http://www.sat.gob.mx/cfd/4
-        http://www.sat.gob.mx/sitio_internet/cfd/4/cfdv40.xsd"
-    Version="4.0"
-    Serie="A"
-    Folio="{uuid.uuid4().hex[:8]}"
-    Fecha="{datetime.now().isoformat()}"
-    Moneda="MXN"
-    TipoDeComprobante="I"
-    Exportacion="01"
-    LugarExpedicion="{cfdi['cp_emisor']}"
-    MetodoPago="{cfdi['metodo_pago'][:3]}"
-    FormaPago="{cfdi['forma_pago'][:2]}"
-    SubTotal="{subtotal:.2f}"
-    Descuento="{total_descuentos:.2f}"
-    Total="{total:.2f}">
+    SubElement(complemento, "tfd:TimbreFiscalDigital", {
+        "xmlns:tfd": NS_TFD,
+        "Version": "1.1",
+        "UUID": str(uuid.uuid4()).upper(),
+        "FechaTimbrado": cfdi["fecha"],
+        "RfcProvCertif": cfdi["rfc_emisor"]
+    })
 
-    <cfdi:Emisor
-        Nombre="{cfdi['emisor']}"
-        Rfc="{cfdi['rfc_emisor']}"
-        RegimenFiscal="{cfdi['regimen_emisor'][:3]}"/>
+    xml_bytes = tostring(
+        root,
+        encoding="utf-8"
+    )
 
-    <cfdi:Receptor
-        Nombre="{cfdi['receptor']}"
-        Rfc="{cfdi['rfc_receptor']}"
-        DomicilioFiscalReceptor="{cfdi['cp']}"
-        RegimenFiscalReceptor="{cfdi['regimen_receptor'][:3]}"
-        UsoCFDI="{cfdi['uso_cfdi'][:3]}"/>
+    pretty_xml = minidom.parseString(
+        xml_bytes
+    ).toprettyxml(indent="    ")
 
-    <cfdi:Conceptos>
-
-        {conceptos_xml}
-
-    </cfdi:Conceptos>
-
-    <cfdi:Impuestos TotalImpuestosTrasladados="{total_impuestos:.2f}">
-        <cfdi:Traslados>
-            <cfdi:Traslado
-                Base="{subtotal:.2f}"
-                Impuesto="002"
-                TipoFactor="Tasa"
-                TasaOCuota="0.160000"
-                Importe="{total_impuestos:.2f}"/>
-        </cfdi:Traslados>
-    </cfdi:Impuestos>
-
-</cfdi:Comprobante>
-"""
-
-    return xml
+    return pretty_xml

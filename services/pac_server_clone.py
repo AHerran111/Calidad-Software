@@ -1,28 +1,119 @@
-from fastapi import FastAPI, Request, Response
-
+from fastapi import FastAPI, Request
+from fastapi.responses import Response
+from lxml import etree
 from xml.etree import ElementTree as ET
+import psycopg2
+
+DB_CONFIG  = {
+    "host": "165.245.152.114",
+    "dbname": "facts",
+    "user": "facts",
+    "password": "admin123",
+    "port" : "5432"
+}
 
 CFDI_NS = "{http://www.sat.gob.mx/cfd/4}"
 
 app = FastAPI()
 
+def upload_data(root, xml):
+
+    sello = root.attrib.get("Sello")
+    total = root.attrib.get("Total")
+    fecha = root.attrib.get("Fecha")
+
+    emisor = root.find(f"{CFDI_NS}Emisor")
+    receptor = root.find(f"{CFDI_NS}Receptor")
+
+    if emisor is None:
+        raise Exception("Emisor not found")
+
+    if receptor is None:
+        raise Exception("Receptor not found")
+
+    rfc_emisor = emisor.attrib.get("Rfc")
+    rfc_receptor = receptor.attrib.get("Rfc")
+
+    estado = "TIMBRADO"
+
+    conn = psycopg2.connect(**DB_CONFIG)
+    cur = conn.cursor()
+
+    query = """
+        INSERT INTO fact_schema.facturas (
+            "SELLO",
+            "RFC_EMISOR",
+            "RFC_RECEPTOR",
+            "TOTAL",
+            "FECHA",
+            "XML",
+            "ESTADO"
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+    """
+
+    try:
+
+        cur.execute(
+            query,
+            (
+                sello,
+                rfc_emisor,
+                rfc_receptor,
+                total,
+                fecha,
+                xml,
+                estado
+            )
+        )
+
+        conn.commit()
+
+    except Exception as e:
+
+        conn.rollback()
+        raise Exception(f"POSTGRES error: {e}")
+
+    finally:
+
+        cur.close()
+        conn.close()
+
+
+
+
 @app.get("/get-message")
 async def read_root():
     return {"Message":"Success"}
 
+@app.post("/test")
+async def timbrar_cfdi(request: Request):
+
+    print("ROUTE ENTERED")
+
+    body = await request.body()
+
+    print(body.decode("utf-8"))
+
+    return {
+        "ok": True
+    }
+
 @app.post("/process_xml")
 async def timbrar_cfdi(request: Request):
 
+    print(f"obtaining request...\nclient ip{request.client.host}\nclient port{request.client.port}\nheaders\n{request.headers}")
     xml = await request.body()
     xml = xml.decode("utf-8")
 
+
     try:
-        
+
         # =========================
         # PARSE XML
         # =========================
         root = ET.fromstring(xml)
-        print(xml)
+        #print(xml)
         # =========================
         # VALIDAR ROOT
         # =========================
@@ -225,6 +316,11 @@ async def timbrar_cfdi(request: Request):
             complemento + "\n</cfdi:Comprobante>"
         )
 
+        try:
+            upload_data(root,xml)
+        except Exception as e:
+            return Response(content=f"PAC ERORR: {e}", status_code=500)
+
         return Response(content=xml_timbrado, media_type="application/xml")
 
     except ET.ParseError:
@@ -233,4 +329,3 @@ async def timbrar_cfdi(request: Request):
     except Exception as e:
         return Response(content=f"PAC ERORR: {e}", status_code=500)
 
-    
