@@ -1,4 +1,4 @@
-# services/pac_mock.py
+# services/pac_api.py
 
 import requests
 
@@ -12,6 +12,6 @@ def timbrar_cfdi(xml_string):
     response = requests.post(url, data=xml_string, headers=headers)
 
     print(response.status_code)
-    print(response.text)
+    #print(response.text)
 
     return response.text

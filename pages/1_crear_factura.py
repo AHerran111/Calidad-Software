@@ -6,15 +6,13 @@ import streamlit as st
 from forex_python.converter import CurrencyRates
 from services.cfdi_generator import generar_cfdi
 from services.signer_mock import sellar_cfdi
-from utils.database import get_connection, get_emisores, get_receptores, guardar_factura
+from utils.database import get_contactos, guardar_factura
 from utils.vars import vars
 from utils.xml_utils import dict_to_xml
 
-conn = get_connection()
 
 c = CurrencyRates()
-emisores = get_emisores(conn)
-receptores = get_receptores(conn)
+emisores, receptores = get_contactos()
 
 st.set_page_config(page_title="Crear Factura", page_icon="📈")
 
@@ -438,7 +436,7 @@ if st.button("Generar CFDI", disabled=button_state):
     st.json(cfdi)
 
     xml = dict_to_xml(cfdi)
-    guardar_factura(conn, xml)
+    guardar_factura(xml)
 
     # print(xml)
     # try:

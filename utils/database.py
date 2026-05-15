@@ -1,17 +1,16 @@
 # utils/database.py
-import tomllib
 from xml.etree import ElementTree as ET
-
-import pandas as pd
 import psycopg2
 from psycopg2.extras import RealDictCursor
+import pandas as pd
+
+import tomllib
 
 with open("./utils/secrets.toml", "rb") as f:
     config = tomllib.load(f)
 
 DB_CONFIG = config["database"]
 CFDI_NS = "{http://www.sat.gob.mx/cfd/4}"
-
 
 def get_connection():
     return psycopg2.connect(
@@ -23,8 +22,10 @@ def get_connection():
     )
 
 
-def get_emisores(conn):
+def get_contactos():
 
+    conn = get_connection()
+  
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         cur.execute("""
             SELECT
@@ -49,11 +50,9 @@ def get_emisores(conn):
                 "address": row["direccion"],
             }
 
-        return emisores
+        
 
-
-def get_receptores(conn):
-
+  
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         cur.execute("""
             SELECT
@@ -65,10 +64,17 @@ def get_receptores(conn):
             ORDER BY nombre
         """)
 
-        return cur.fetchall()
+        receptores = cur.fetchall()
+
+        cur.close()
+        conn.close()
+
+    return emisores,receptores
 
 
-def guardar_factura(conn, xml):
+
+def guardar_factura(xml):
+    conn = get_connection()
     cursor = conn.cursor()
     root = ET.fromstring(xml)
 
@@ -107,19 +113,32 @@ def guardar_factura(conn, xml):
     """
 
     try:
-        cur.execute(query, (sello, rfc_emisor, rfc_receptor, total, fecha, xml, estado))
+
+        cur.execute(
+            query,
+            (
+                sello,
+                rfc_emisor,
+                rfc_receptor,
+                total,
+                fecha,
+                xml,
+                estado
+            )
+        )
 
         conn.commit()
         print("commited succesfully")
 
     except Exception as e:
+
         conn.rollback()
         raise Exception(f"POSTGRES error: {e}")
 
     finally:
+
         cur.close()
         conn.close()
-
 
 def obtener_pendientes(conn):
 
@@ -145,7 +164,6 @@ def obtener_pendientes(conn):
 
     return rows
 
-
 def obtener_xml(conn, sello):
 
     cursor = conn.cursor()
@@ -164,7 +182,6 @@ def obtener_xml(conn, sello):
 
     return row[0]
 
-
 def actualizar_timbrado(conn, sello, xml_timbrado):
 
     cursor = conn.cursor()
@@ -177,13 +194,24 @@ def actualizar_timbrado(conn, sello, xml_timbrado):
     WHERE "SELLO" = %s
     """
 
-    cursor.execute(query, (xml_timbrado, sello))
+    cursor.execute(
+        query,
+        (
+            xml_timbrado,
+            sello
+        )
+    )
 
     conn.commit()
     cursor.close()
 
 
-def get_facturas(estado="Todos", rfc_emisor="", rfc_receptor="", fecha=None):
+def get_facturas(
+    estado="Todos",
+    rfc_emisor="",
+    rfc_receptor="",
+    fecha=None
+):
 
     conn = get_connection()
     cursor = conn.cursor()
@@ -224,7 +252,12 @@ def get_facturas(estado="Todos", rfc_emisor="", rfc_receptor="", fecha=None):
 
     rows = cursor.fetchall()
 
-    columns = [desc[0] for desc in cursor.description]
+    columns = [
+        desc[0]
+        for desc in cursor.description
+    ]
+
+    import pandas as pd
 
     df = pd.DataFrame(rows, columns=columns)
 
@@ -238,8 +271,7 @@ def insertar_emisor(conn, rfc, nombre, regimen, cp, direccion):
 
     cursor = conn.cursor()
 
-    cursor.execute(
-        """
+    cursor.execute("""
         INSERT INTO fact_schema.emisores (
             rfc,
             nombre,
@@ -248,9 +280,13 @@ def insertar_emisor(conn, rfc, nombre, regimen, cp, direccion):
             direccion
         )
         VALUES (%s, %s, %s, %s, %s)
-    """,
-        (rfc, nombre, regimen, cp, direccion),
-    )
+    """, (
+        rfc,
+        nombre,
+        regimen,
+        cp,
+        direccion
+    ))
 
     conn.commit()
 
@@ -259,8 +295,7 @@ def insertar_receptor(conn, rfc, nombre, regimen, cp):
 
     cursor = conn.cursor()
 
-    cursor.execute(
-        """
+    cursor.execute("""
         INSERT INTO fact_schema.receptores (
             rfc,
             nombre,
@@ -268,8 +303,11 @@ def insertar_receptor(conn, rfc, nombre, regimen, cp):
             codigo_postal
         )
         VALUES (%s, %s, %s, %s)
-    """,
-        (rfc, nombre, regimen, cp),
-    )
+    """, (
+        rfc,
+        nombre,
+        regimen,
+        cp
+    ))
 
     conn.commit()
