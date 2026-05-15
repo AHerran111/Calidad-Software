@@ -1,0 +1,48 @@
+diff --git a/pac_server_repo b/pac_server_repo
+--- a/pac_server_repo
++++ b/pac_server_repo
+@@ -1 +1 @@
+-Subproject commit fb1947622f79c08aa12daf818e2696235238dda0
++Subproject commit fb1947622f79c08aa12daf818e2696235238dda0-dirty
+diff --git a/pages/2_timbrar_factura.py b/pages/2_timbrar_factura.py
+index 0428aa4..06918a8 100644
+--- a/pages/2_timbrar_factura.py
++++ b/pages/2_timbrar_factura.py
+@@ -75,7 +75,7 @@ st.table(df)
+ if st.button("Timbrar"):
+     try:
+         xml = obtener_xml(conn, sello)
+-
++        
+         xml_timbrado = timbrar_cfdi(xml)
+ 
+         actualizar_timbrado(conn, sello, xml_timbrado)
+diff --git a/services/signer_mock.py b/services/signer_mock.py
+index a3a81a1..d7d4096 100644
+--- a/services/signer_mock.py
++++ b/services/signer_mock.py
+@@ -1,10 +1,19 @@
+ # services/signer_mock.py
++
+ import base64
++from typing import Any
++
+ 
++def sellar_cfdi(cfdi: dict[str, Any]) -> dict[str, Any]:
++    cadena = (
++        f"{cfdi['emisor']}"
++        f"{cfdi['receptor']}"
++        f"{cfdi['total_final']}"
++        f"{cfdi['fecha']}"
++    )
+ 
+-def sellar_cfdi(cfdi):
+-    cadena = f"{cfdi['emisor']}{cfdi['receptor']}{cfdi['total_final']}{cfdi['fecha']}"
+-    sello_fake = base64.b64encode(cadena.encode()).decode()
++    sello_fake = base64.b64encode(cadena.encode("utf-8")).decode("utf-8")
+ 
+     cfdi["sello"] = sello_fake
+-    return cfdi
++
++    return cfdi
+\ No newline at end of file

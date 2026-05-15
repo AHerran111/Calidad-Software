@@ -75,7 +75,7 @@ st.table(df)
 if st.button("Timbrar"):
     try:
         xml = obtener_xml(conn, sello)
-
+        
         xml_timbrado = timbrar_cfdi(xml)
 
         actualizar_timbrado(conn, sello, xml_timbrado)
