@@ -79,7 +79,7 @@ st.divider()
 st.header("Control de infraestructura")
 
 st.warning(
-    "Usa estos botones para encender o apagar los servicios asociados a la aplicación."
+    "Usa estos botones para encender o apagar los servicios asociados a la aplicación. En caso de dar error al acceder los modulos y tener prendida la aplicación, recargar la pagina y volver a intentar"
 )
 
 col_on, col_off = st.columns(2)
@@ -88,7 +88,7 @@ with col_on:
     if st.button("🟢 PRENDER APLICACIÓN", type="primary"):
         try:
             start_infrastructure()
-            st.success("Solicitud enviada: la infraestructura se está encendiendo.")
+            st.success("Solicitud enviada: la infraestructura se está encendiendo. Espera 1 minuto porfavor")
         except Exception as e:
             st.error(f"Error al prender la aplicación: {e}")
 
@@ -114,3 +114,5 @@ st.markdown(
     - **Catálogos:** administración de emisores y receptores.
     """
 )
+
+st.success("Expande el menu ubicado a la izquierda para acceder a los modulos")
