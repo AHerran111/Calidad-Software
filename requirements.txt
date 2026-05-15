@@ -55,7 +55,6 @@ python-multipart==0.0.27
 PyYAML==6.0.3
 referencing==0.37.0
 requests==2.33.1
--e git+https://github.com/AHerran111/Calidad-Software@6195bdf6f5c3c307ce5f13ca3a866f62a581e6b2#egg=rfc_app
 rich==15.0.0
 rich-toolkit==0.19.7
 rignore==0.7.6

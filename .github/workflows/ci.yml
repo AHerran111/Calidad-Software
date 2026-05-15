@@ -38,10 +38,10 @@ jobs:
       # ------------------------------------------------------------------
       # 2. Python
       # ------------------------------------------------------------------
-      - name: Configurar Python 3.14
+      - name: Configurar Python 3.11
         uses: actions/setup-python@v5
         with:
-          python-version: "3.14"
+          python-version: "3.11"
           cache: "pip"
 
       # ------------------------------------------------------------------
@@ -50,7 +50,9 @@ jobs:
       - name: Instalar dependencias
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          # Strip the self-referencing editable install line before installing
+          grep -v '^\-e ' requirements.txt > requirements_ci.txt
+          pip install -r requirements_ci.txt
           pip install pytest pytest-cov httpx
 
       # ------------------------------------------------------------------
