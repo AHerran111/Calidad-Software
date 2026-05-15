@@ -81,6 +81,7 @@ st.header("Control de infraestructura")
 st.warning(
     "Usa estos botones para encender o apagar los servicios asociados a la aplicación. En caso de dar error al acceder los modulos y tener prendida la aplicación, recargar la pagina y volver a intentar"
 )
+st.error("APAGAR APLICACIÓN AL FINAL DE USO, PARA NO GENERAR MAS GASTOS DE COMPUTO EN NUBE (:")
 
 col_on, col_off = st.columns(2)
 
