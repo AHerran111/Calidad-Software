@@ -15,6 +15,13 @@ export const options = {
 function generateXML() {
   const folio = Math.random().toString(16).substring(2, 10);
 
+  // unique sello per request
+  const sello =
+    "TEST_" +
+    Date.now().toString(16) +
+    "_" +
+    Math.random().toString(16).substring(2, 12);
+
   return `
 <cfdi:Comprobante
     xmlns:cfdi="http://www.sat.gob.mx/cfd/4"
@@ -34,7 +41,7 @@ function generateXML() {
     SubTotal="200.00"
     Descuento="40.00"
     Total="185.60"
-    Sello="TESTSELLO123">
+    Sello="${sello}">
 
     <cfdi:Emisor
         Nombre="TECNOLOGIA APLICADA SA DE CV"

@@ -2,14 +2,24 @@
 from xml.etree import ElementTree as ET
 import psycopg2
 from psycopg2.extras import RealDictCursor
-import pandas as pd
+import os
 
 import tomllib
 
-with open("./utils/secrets.toml", "rb") as f:
-    config = tomllib.load(f)
+def load_db_config():
+    try:
+        return dict(st.secrets["database"])
+    except Exception:
+        secrets_path = os.path.dirname(__file__)+"/secrets.toml"
 
-DB_CONFIG = config["database"]
+        with open(secrets_path, "rb") as f:
+            config = tomllib.load(f)
+
+        return config["database"]
+
+
+DB_CONFIG = load_db_config()
+
 CFDI_NS = "{http://www.sat.gob.mx/cfd/4}"
 
 def get_connection():
