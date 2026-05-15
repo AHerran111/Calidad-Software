@@ -1,0 +1,103 @@
+# .github/workflows/ci.yml
+
+name: CI – Pruebas Unitarias
+
+on:
+  push:
+    branches: ["main", "master", "develop"]
+  pull_request:
+    branches: ["main", "master", "develop"]
+
+jobs:
+  test:
+    name: pytest + cobertura
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: test_cfdi
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      # ------------------------------------------------------------------
+      # 1. Checkout
+      # ------------------------------------------------------------------
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      # ------------------------------------------------------------------
+      # 2. Python
+      # ------------------------------------------------------------------
+      - name: Configurar Python 3.14
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: "pip"
+
+      # ------------------------------------------------------------------
+      # 3. Dependencias
+      # ------------------------------------------------------------------
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov httpx
+
+      # ------------------------------------------------------------------
+      # 4. Crear secrets de prueba
+      # ------------------------------------------------------------------
+      - name: Crear utils/secrets.toml
+        run: |
+          cat > utils/secrets.toml << 'EOF'
+          [database]
+          host     = "localhost"
+          dbname   = "test_cfdi"
+          user     = "postgres"
+          password = "postgres"
+          port     = 5432
+          EOF
+
+      - name: Crear pac_server_repo/secrets/secrets.toml
+        run: |
+          mkdir -p pac_server_repo/secrets
+          cat > pac_server_repo/secrets/secrets.toml << 'EOF'
+          [database]
+          host     = "localhost"
+          dbname   = "test_cfdi"
+          user     = "postgres"
+          password = "postgres"
+          port     = 5432
+          EOF
+
+      # ------------------------------------------------------------------
+      # 5. Tests + cobertura
+      # ------------------------------------------------------------------
+      - name: Ejecutar pruebas
+        run: |
+          pytest tests/py_test.py -v \
+            --cov=services \
+            --cov=utils \
+            --cov=pac_server_repo \
+            --cov-report=term-missing \
+            --cov-report=xml:coverage.xml \
+            --cov-fail-under=80
+
+      # ------------------------------------------------------------------
+      # 6. Publicar reporte de cobertura (opcional, requiere cuenta Codecov)
+      # ------------------------------------------------------------------
+      - name: Subir cobertura a Codecov
+        if: always()
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.xml
+          fail_ci_if_error: false
