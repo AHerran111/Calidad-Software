@@ -88,7 +88,7 @@ with col_on:
     if st.button("🟢 PRENDER APLICACIÓN", type="primary"):
         try:
             start_infrastructure()
-            st.success("Solicitud enviada: la infraestructura se está encendiendo. Espera 1 minuto porfavor")
+            st.success("Solicitud enviada: la infraestructura se está encendiendo. Espera 1 minuto por favor.")
         except Exception as e:
             st.error(f"Error al prender la aplicación: {e}")
 
