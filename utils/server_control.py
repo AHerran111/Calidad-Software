@@ -5,7 +5,7 @@ import os
 
 def load_token():
     try:
-        return dict(st.secrets["do_token"]["token"])
+        return dict(st.secrets["do_token"])
     
     except Exception:
         secrets_path = os.path.dirname(__file__)+"/secrets.toml"
