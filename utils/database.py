@@ -3,12 +3,14 @@ from xml.etree import ElementTree as ET
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import os
+import streamlit as st
 
 import tomllib
 
 def load_db_config():
     try:
         return dict(st.secrets["database"])
+    
     except Exception:
         secrets_path = os.path.dirname(__file__)+"/secrets.toml"
 
