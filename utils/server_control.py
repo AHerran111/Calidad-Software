@@ -16,7 +16,7 @@ def load_token():
         return config["do_token"]["token"]
 
 DO_TOKEN = load_token()
-print(DO_TOKEN)
+
 
 DROPLETS = {
     "postgres_cliente": "570747060",
